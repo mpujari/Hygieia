@@ -1,16 +1,14 @@
-package com.capitalone.dashboard.collector;
+package com.capitalone.dashboard.model;
 
-import com.capitalone.dashboard.model.Collector;
-import com.capitalone.dashboard.model.CollectorType;
 import com.capitalone.dashboard.util.YouTrackConstants;
 
 /**
  * TODO java doc
  */
-public class YouTrackCollector extends Collector {
+public class FeatureCollector extends Collector {
 
-	public static YouTrackCollector prototype() {
-		YouTrackCollector protoType = new YouTrackCollector();
+	public static FeatureCollector prototype() {
+		FeatureCollector protoType = new FeatureCollector();
 		protoType.setName(YouTrackConstants.YOUTRACK);
 		protoType.setOnline(true);
 		protoType.setEnabled(true);

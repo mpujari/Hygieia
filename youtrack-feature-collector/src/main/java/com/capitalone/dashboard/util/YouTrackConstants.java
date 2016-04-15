@@ -4,7 +4,7 @@ public final class YouTrackConstants {
 
 	public static final String YOUTRACK = "YouTrack";
 
-	public static final String AGENT_NAME = "Hygieia Dashboard - YouTrack Collector";
+	public static final String AGENT_NAME = "Hygieia Dashboard - YouTrack Feature Collector";
 
 	private YouTrackConstants() {
 	}

@@ -1,11 +1,11 @@
-package com.capitalone.dashboard.collector;
+package com.capitalone.dashboard.util;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
 @ConfigurationProperties(prefix = "youtrack")
-public class YouTrackSettings {
+public class FeatureSettings {
 
     private String cron;
     private String host;
