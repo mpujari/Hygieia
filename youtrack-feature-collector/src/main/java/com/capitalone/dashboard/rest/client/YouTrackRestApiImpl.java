@@ -3,7 +3,6 @@
  */
 package com.capitalone.dashboard.rest.client;
 
-import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.AGILE_BOARD_ALL;
 import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.AGILE_INFO_ALL;
 import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.AGILE_SPRINTS;
 import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.JIRA_ALL;
@@ -35,7 +34,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestOperations;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.capitalone.dashboard.json.AgileBoard;
 import com.capitalone.dashboard.json.AgileBoardInfo;
 import com.capitalone.dashboard.json.Sprint;
 import com.capitalone.dashboard.json.YouTrackIssue;
@@ -105,17 +103,6 @@ public class YouTrackRestApiImpl implements YouTrackRestApi {
 			YouTrackIssues issues = (YouTrackIssues) mapper.readValue(responseEntity.getBody().getBytes(),
 					YouTrackIssues.class);
 			return issues.getIssues();
-		} catch (Exception e) {
-			throw new HygieiaException(e);
-		}
-	}
-
-	public List<AgileBoard> getAgileBoards() throws HygieiaException {
-		try {
-			ObjectMapper mapper = new ObjectMapper();
-			ResponseEntity<String> responseEntity = callRestApi(AGILE_BOARD_ALL, GET, String.class);
-			return mapper.readValue(responseEntity.getBody().getBytes(), new TypeReference<List<AgileBoard>>() {
-			});
 		} catch (Exception e) {
 			throw new HygieiaException(e);
 		}

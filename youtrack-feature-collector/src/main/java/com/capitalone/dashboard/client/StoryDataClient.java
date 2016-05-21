@@ -14,6 +14,7 @@ import org.springframework.util.CollectionUtils;
 import com.capitalone.dashboard.json.FeatureSettings;
 import com.capitalone.dashboard.json.Sprint;
 import com.capitalone.dashboard.json.YouTrackIssue;
+import com.capitalone.dashboard.misc.HygieiaException;
 import com.capitalone.dashboard.model.Collector;
 import com.capitalone.dashboard.model.Feature;
 import com.capitalone.dashboard.model.FeatureStatus;
@@ -34,19 +35,17 @@ public class StoryDataClient extends BaseClient {
 	private final FeatureCollectorRepository featureCollectorRepository;
 	private final FeatureRepository featureRepo;
 	private final YouTrackRestApi youTrackRestApi;
-	private final Map<String, Sprint> sprintNameMap;
 	private final Map<String, String> estimateNameMinMap = Maps.newHashMap();
 
 	public StoryDataClient(CoreFeatureSettings coreFeatureSettings, FeatureSettings featureSettings,
 			FeatureRepository featureRepository, FeatureCollectorRepository featureCollectorRepository,
-			YouTrackRestApi youTrackRestApi, Map<String, Sprint> sprintNameMap) {
+			YouTrackRestApi youTrackRestApi) {
 		logger.debug("Constructing data collection for the feature widget, story-level data...");
 		this.coreFeatureSettings = coreFeatureSettings;
 		this.featureSettings = featureSettings;
 		this.featureRepo = featureRepository;
 		this.featureCollectorRepository = featureCollectorRepository;
 		this.youTrackRestApi = youTrackRestApi;
-		this.sprintNameMap = sprintNameMap != null ? sprintNameMap : Maps.newHashMap();
 		init();
 	}
 
@@ -86,6 +85,7 @@ public class StoryDataClient extends BaseClient {
 		if (youTrackIssues == null) {
 			return; // nothing to do
 		}
+		Map<String, Sprint> sprintNameMap = getSprintInfo();
 		for (YouTrackIssue trackIssue : youTrackIssues) {
 			Feature feature = new Feature();
 
@@ -103,12 +103,12 @@ public class StoryDataClient extends BaseClient {
 			feature.setsName(trackIssue.getFieldValueStr("summary"));
 
 			String statusStr = (String) trackIssue.getFieldValueFromArray("State", 0);
-			String canonicalFeatureStatus = toCanonicalFeatureStatus(statusStr);
+			FeatureStatus canonicalFeatureStatus = toCanonicalFeatureStatus(statusStr);
 			// sStatus
-			feature.setsStatus(canonicalFeatureStatus);
+			feature.setsStatus(canonicalFeatureStatus.getStatus());
 
 			// sState
-			feature.setsState(canonicalFeatureStatus);
+			feature.setsState(toCanonicalFeatureState(canonicalFeatureStatus));
 
 			// sEstimate,*
 			feature.setsEstimate(getsEstimate(trackIssue));
@@ -228,6 +228,16 @@ public class StoryDataClient extends BaseClient {
 		logger.info("Size:{}", youTrackIssues.size());
 	}
 
+	private Map<String, Sprint> getSprintInfo() {
+		SprintInfoClient sprintInfoClient = new SprintInfoClient(youTrackRestApi);
+		try {
+			return sprintInfoClient.getSprintNameMap();
+		} catch (HygieiaException e) {
+			logger.error("Error during collecting sprint information", e);
+		}
+		return Maps.newHashMap();// don't do anythibng
+	}
+
 	/**
 	 * We first check for custom estimate field i.e.
 	 * youtrackEstimationFieldName, if its found we use it or else we check for
@@ -288,18 +298,18 @@ public class StoryDataClient extends BaseClient {
 		return masterStartDate;
 	}
 
-	private String toCanonicalFeatureStatus(String nativeStatus) {
+	private FeatureStatus toCanonicalFeatureStatus(String nativeStatus) {
 		List<String> todo = coreFeatureSettings.getTodoStatuses();
 		List<String> doing = coreFeatureSettings.getDoingStatuses();
 		List<String> done = coreFeatureSettings.getDoneStatuses();
 		boolean alreadySet = false;
-		String canonicalStatus = FeatureStatus.BACKLOG.getStatus();
+		FeatureStatus canonicalStatus = FeatureStatus.BACKLOG;
 
 		if (!nativeStatus.isEmpty()) {
 			// Map todo
 			for (String status : todo) {
 				if (status.equalsIgnoreCase(nativeStatus)) {
-					canonicalStatus = FeatureStatus.BACKLOG.getStatus();
+					canonicalStatus = FeatureStatus.BACKLOG;
 					alreadySet = true;
 					break;
 				}
@@ -308,7 +318,7 @@ public class StoryDataClient extends BaseClient {
 			if (!alreadySet) {
 				for (String status : doing) {
 					if (status.equalsIgnoreCase(nativeStatus)) {
-						canonicalStatus = FeatureStatus.IN_PROGRESS.getStatus();
+						canonicalStatus = FeatureStatus.IN_PROGRESS;
 						alreadySet = true;
 						break;
 					}
@@ -318,7 +328,7 @@ public class StoryDataClient extends BaseClient {
 			if (!alreadySet) {
 				for (String status : done) {
 					if (status.equalsIgnoreCase(nativeStatus)) {
-						canonicalStatus = FeatureStatus.DONE.getStatus();
+						canonicalStatus = FeatureStatus.DONE;
 						alreadySet = true;
 						break;
 					}
@@ -326,13 +336,20 @@ public class StoryDataClient extends BaseClient {
 			}
 
 			if (!alreadySet) {
-				canonicalStatus = FeatureStatus.BACKLOG.getStatus();
+				canonicalStatus = FeatureStatus.BACKLOG;
 			}
 		} else {
-			canonicalStatus = FeatureStatus.BACKLOG.getStatus();
+			canonicalStatus = FeatureStatus.BACKLOG;
 		}
 
 		return canonicalStatus;
+	}
+
+	private String toCanonicalFeatureState(FeatureStatus nativeStatus) {
+		if (nativeStatus == FeatureStatus.IN_PROGRESS || nativeStatus == FeatureStatus.WAITING) {
+			return "Active";
+		}
+		return nativeStatus.getStatus();
 	}
 
 }

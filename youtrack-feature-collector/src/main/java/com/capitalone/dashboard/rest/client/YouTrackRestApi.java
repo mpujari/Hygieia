@@ -7,7 +7,6 @@ import java.util.List;
 
 import org.json.simple.JSONArray;
 
-import com.capitalone.dashboard.json.AgileBoard;
 import com.capitalone.dashboard.json.AgileBoardInfo;
 import com.capitalone.dashboard.json.Sprint;
 import com.capitalone.dashboard.json.YouTrackIssue;
@@ -21,9 +20,6 @@ public interface YouTrackRestApi {
 	JSONArray getTeams() throws HygieiaException;
 
 	List<YouTrackIssue> getYouTrackIssues(String filterString, String maxResults) throws HygieiaException;
-
-	// TODO it seems we don't require it
-	List<AgileBoard> getAgileBoards() throws HygieiaException;
 
 	List<AgileBoardInfo> getAgileInfos() throws HygieiaException;
 
