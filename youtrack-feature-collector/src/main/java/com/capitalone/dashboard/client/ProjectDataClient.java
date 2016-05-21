@@ -1,44 +1,90 @@
 package com.capitalone.dashboard.client;
 
+import static com.capitalone.dashboard.util.YouTrackConstants.YOUTRACK;
+
+import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Scope;
 import com.capitalone.dashboard.repository.FeatureCollectorRepository;
 import com.capitalone.dashboard.repository.ScopeRepository;
-import com.capitalone.dashboard.util.FeatureSettings;
+import com.capitalone.dashboard.rest.client.YouTrackRestApi;
 
 public class ProjectDataClient extends BaseClient {
-	private static final Logger LOGGER = LoggerFactory.getLogger(ProjectDataClient.class);
 
-	private final FeatureSettings featureSettings;
+	private final Logger logger = LoggerFactory.getLogger(getClass());
 	private final ScopeRepository projectRepo;
 	private final FeatureCollectorRepository featureCollectorRepository;
+	private final YouTrackRestApi youTrackRestApi;
 
-	public ProjectDataClient(FeatureSettings featureSettings, ScopeRepository projectRepository,
-			FeatureCollectorRepository featureCollectorRepository) {
-		LOGGER.debug("Constructing data collection for the feature widget, story-level data...");
-
-		this.featureSettings = featureSettings;
+	public ProjectDataClient(ScopeRepository projectRepository, FeatureCollectorRepository featureCollectorRepository,
+			YouTrackRestApi youTrackRestApi) {
+		logger.debug("Constructing data collection for the feature widget, story-level data...");
 		this.projectRepo = projectRepository;
 		this.featureCollectorRepository = featureCollectorRepository;
+		this.youTrackRestApi = youTrackRestApi;
 	}
 
-	protected void updateMongoInfo(JSONArray tmpMongoDetailArray) {
+	public void updateProjectInformation() {
+		try {
+			updateMongoInfo(youTrackRestApi.getTeams());
+		} catch (Exception e) {
+			logger.error("Error in collecting Youtrack Data: " + e.getMessage(), e);
+		}
 	}
 
-	public String getMaxChangeDate() {
-		return null;
+	private void updateMongoInfo(JSONArray tmpMongoDetailArray) {
+		for (Object obj : tmpMongoDetailArray) {
+			JSONObject dataMainObj = (JSONObject) obj;
+			Scope scope = new Scope();
+
+			String id = getJSONString(dataMainObj, "shortName");
+			/*
+			 * Removing any existing entities where they exist in the local DB
+			 * store...
+			 */
+			this.removeExistingEntity(id);
+			// collectorId
+			scope.setCollectorId(featureCollectorRepository.findByName(YOUTRACK).getId());
+			// ID;
+			scope.setpId(id);
+			// name;
+			scope.setName(getJSONString(dataMainObj, "name"));
+			// beginDate - does not exist for youtrack
+			scope.setBeginDate("");
+			// endDate - does not exist for youtrack
+			scope.setEndDate("");
+			// changeDate - does not exist for youtrack
+			scope.setChangeDate("");
+			// assetState - does not exist for youtrack
+			scope.setAssetState("Active");
+			// isDeleted - does not exist for youtrack
+			scope.setIsDeleted("False");
+			// path - does not exist for youtrack
+			scope.setProjectPath(getJSONString(dataMainObj, "name"));
+			// Saving back to MongoDB
+			projectRepo.save(scope);
+		}
 	}
 
-	public void updateProjectInformation() throws HygieiaException {
-	}
+	protected boolean removeExistingEntity(String localId) {
+		boolean deleted = false;
 
-	public void updateObjectInformation(String query) throws HygieiaException {
-	}
-
-	protected void removeExistingEntity(String localId) {
+		try {
+			ObjectId tempEntId = projectRepo.getScopeIdById(localId).get(0).getId();
+			if (localId.equalsIgnoreCase(projectRepo.getScopeIdById(localId).get(0).getpId())) {
+				projectRepo.delete(tempEntId);
+				deleted = true;
+			}
+		} catch (IndexOutOfBoundsException ioobe) {
+			logger.debug("Nothing matched the redundancy checking from the database", ioobe);
+		} catch (Exception e) {
+			logger.error("There was a problem validating the redundancy of the data model", e);
+		}
+		return deleted;
 	}
 
 }

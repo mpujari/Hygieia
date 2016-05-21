@@ -10,37 +10,36 @@ import org.slf4j.LoggerFactory;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import com.capitalone.dashboard.misc.HygieiaException;
 import com.capitalone.dashboard.model.ScopeOwnerCollectorItem;
 import com.capitalone.dashboard.repository.FeatureCollectorRepository;
 import com.capitalone.dashboard.repository.ScopeOwnerRepository;
 import com.capitalone.dashboard.rest.client.YouTrackRestApi;
-import com.capitalone.dashboard.util.FeatureSettings;
 import com.capitalone.dashboard.util.YouTrackConstants;
 
 public class TeamDataClient extends BaseClient {
-	private static final Logger LOGGER = LoggerFactory.getLogger(TeamDataClient.class);
-	@SuppressWarnings("unused")
-	private final FeatureSettings featureSettings;
+	
+	private final Logger logger = LoggerFactory.getLogger(getClass());
 	private final ScopeOwnerRepository teamRepo;
 	private final FeatureCollectorRepository featureCollectorRepository;
 	private final YouTrackRestApi youTrackRestApi;
 	private ObjectId oldTeamId;
 	private boolean oldTeamEnabledState;
 
-	public TeamDataClient(FeatureCollectorRepository featureCollectorRepository, FeatureSettings featureSettings,
-			ScopeOwnerRepository teamRepository, YouTrackRestApi youTrackRestApi) {
-		LOGGER.debug("Constructing data collection for the feature widget, story-level data...");
-		this.featureSettings = featureSettings;
+	public TeamDataClient(FeatureCollectorRepository featureCollectorRepository, ScopeOwnerRepository teamRepository,
+			YouTrackRestApi youTrackRestApi) {
+		logger.debug("Constructing data collection for the feature widget, story-level data...");
 		this.featureCollectorRepository = featureCollectorRepository;
 		this.teamRepo = teamRepository;
 		this.youTrackRestApi = youTrackRestApi;
 		this.teamRepo.delete("Closed");
 	}
 
-	public void updateTeamInformation() throws HygieiaException {
-		JSONArray jsonArray = youTrackRestApi.getTeams();
-		updateMongoInfo(jsonArray);
+	public void updateTeamInformation() {
+		try {
+			updateMongoInfo(youTrackRestApi.getTeams());
+		} catch (Exception e) {
+			logger.error("Error in collecting Youtrack Data: " + e.getMessage(), e);
+		}
 	}
 
 	private void updateMongoInfo(JSONArray tmpMongoDetailArray) {

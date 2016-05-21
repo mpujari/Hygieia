@@ -1,5 +1,9 @@
 package com.capitalone.dashboard.collector;
 
+import static com.capitalone.dashboard.util.YouTrackConstants.YOUTRACK;
+
+import java.util.Map;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,7 +12,12 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestOperations;
 
+import com.capitalone.dashboard.client.ProjectDataClient;
+import com.capitalone.dashboard.client.SprintInfoClient;
+import com.capitalone.dashboard.client.StoryDataClient;
 import com.capitalone.dashboard.client.TeamDataClient;
+import com.capitalone.dashboard.json.FeatureSettings;
+import com.capitalone.dashboard.json.Sprint;
 import com.capitalone.dashboard.misc.HygieiaException;
 import com.capitalone.dashboard.model.FeatureCollector;
 import com.capitalone.dashboard.repository.BaseCollectorRepository;
@@ -18,9 +27,9 @@ import com.capitalone.dashboard.repository.ScopeOwnerRepository;
 import com.capitalone.dashboard.repository.ScopeRepository;
 import com.capitalone.dashboard.rest.client.YouTrackRestApi;
 import com.capitalone.dashboard.rest.client.YouTrackRestApiImpl;
-import com.capitalone.dashboard.util.FeatureSettings;
+import com.capitalone.dashboard.util.CoreFeatureSettings;
 import com.capitalone.dashboard.util.Supplier;
-import com.capitalone.dashboard.util.YouTrackConstants;
+import com.google.common.collect.Maps;
 
 /**
  * Collects {@link FeatureCollector} data from feature content source system.
@@ -31,9 +40,10 @@ public class FeatureCollectorTask extends CollectorTask<FeatureCollector> {
 
 	private final Logger logger = LoggerFactory.getLogger(getClass());
 
+	private final CoreFeatureSettings coreFeatureSettings;
 	private final FeatureSettings featureSettings;
 
-	private final FeatureCollectorRepository featureRespository;
+	private final FeatureCollectorRepository featureCollectorRepository;
 
 	private final FeatureRepository featureRepository;
 
@@ -43,18 +53,37 @@ public class FeatureCollectorTask extends CollectorTask<FeatureCollector> {
 
 	private final RestOperations restOperations;
 
+	private final Map<String, Sprint> sprintNameMap;
+
 	@Autowired
-	public FeatureCollectorTask(TaskScheduler taskScheduler, FeatureSettings featureSettings,
-			FeatureCollectorRepository featureRespository, FeatureRepository featureRepository,
-			ScopeOwnerRepository teamRepository, ScopeRepository projectRepository,
+	public FeatureCollectorTask(CoreFeatureSettings coreFeatureSettings, TaskScheduler taskScheduler,
+			FeatureSettings featureSettings, FeatureCollectorRepository featureCollectorRepository,
+			FeatureRepository featureRepository, ScopeOwnerRepository teamRepository, ScopeRepository projectRepository,
 			Supplier<RestOperations> restOperationsSupplier) {
-		super(taskScheduler, YouTrackConstants.YOUTRACK);
+		super(taskScheduler, YOUTRACK);
+		this.coreFeatureSettings = coreFeatureSettings;
 		this.featureSettings = featureSettings;
-		this.featureRespository = featureRespository;
+		this.featureCollectorRepository = featureCollectorRepository;
 		this.featureRepository = featureRepository;
 		this.teamRepository = teamRepository;
 		this.projectRepository = projectRepository;
 		this.restOperations = restOperationsSupplier.get();
+		this.sprintNameMap = initSprintInfo();
+	}
+
+	private Map<String, Sprint> initSprintInfo() {
+		String baseUrl = featureSettings.getYoutrackBaseUrl();
+		YouTrackRestApi restApi = new YouTrackRestApiImpl(baseUrl, restOperations);
+		boolean loginSucess = login(restApi);
+		if (loginSucess) {
+			SprintInfoClient sprintInfoClient = new SprintInfoClient(restApi);
+			try {
+				return sprintInfoClient.getSprintNameMap();
+			} catch (HygieiaException e) {
+				logger.error("Error during collecting sprint information", e);
+			}
+		}
+		return Maps.newHashMap();// don't do anythibng
 	}
 
 	@Override
@@ -64,7 +93,7 @@ public class FeatureCollectorTask extends CollectorTask<FeatureCollector> {
 
 	@Override
 	public BaseCollectorRepository<FeatureCollector> getCollectorRepository() {
-		return featureRespository;
+		return featureCollectorRepository;
 	}
 
 	@Override
@@ -75,27 +104,40 @@ public class FeatureCollectorTask extends CollectorTask<FeatureCollector> {
 	@Override
 	public void collect(FeatureCollector collector) {
 		String baseUrl = featureSettings.getYoutrackBaseUrl();
+		YouTrackRestApi restApi = new YouTrackRestApiImpl(baseUrl, restOperations);
+		boolean loginSucess = login(restApi);
+		if (!loginSucess) {
+			return;// don't do anythibng
+		}
+
+		TeamDataClient teamDataClient = new TeamDataClient(featureCollectorRepository, teamRepository, restApi);
+		// update
+		teamDataClient.updateTeamInformation();
+
+		ProjectDataClient projectDataClient = new ProjectDataClient(projectRepository, featureCollectorRepository,
+				restApi);
+		// update
+		projectDataClient.updateProjectInformation();
+
+		StoryDataClient storyDataClient = new StoryDataClient(coreFeatureSettings, featureSettings, featureRepository,
+				featureCollectorRepository, restApi, this.sprintNameMap);
+		storyDataClient.updateStoryInformation();
+
+		logger.info("Feature Data Collection Finished");
+	}
+
+	private boolean login(YouTrackRestApi restApi) {
 		String login = featureSettings.getLogin();
 		String password = featureSettings.getPassword();
-
-		YouTrackRestApi youTrackRestApi = new YouTrackRestApiImpl(baseUrl, restOperations);
 		if (StringUtils.isNotBlank(login) && StringUtils.isNotBlank(password)) {
 			try {
-				youTrackRestApi.login(baseUrl, login, password);
-			} catch (HygieiaException e) {
+				restApi.login(login, password);
+			} catch (Exception e) {
 				logger.error("Log-in problem: " + e.getMessage(), e);
-				return;
+				return false;
 			}
 		}
-
-		TeamDataClient teamDataClient = new TeamDataClient(this.featureRespository, this.featureSettings,
-				this.teamRepository, youTrackRestApi);
-		try {
-			teamDataClient.updateTeamInformation();
-		} catch (HygieiaException he) {
-			logger.error("Error in collecting Youtrack Data: [" + he.getErrorCode() + "] " + he.getMessage(), he);
-		}
-		logger.info("Feature Data Collection Finished");
+		return true;
 	}
 
 }
