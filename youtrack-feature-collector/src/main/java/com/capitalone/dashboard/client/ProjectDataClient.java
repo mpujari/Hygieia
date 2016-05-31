@@ -2,12 +2,13 @@ package com.capitalone.dashboard.client;
 
 import static com.capitalone.dashboard.util.YouTrackConstants.YOUTRACK;
 
+import java.util.List;
+
 import org.bson.types.ObjectId;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.capitalone.dashboard.json.ProjectInfo;
 import com.capitalone.dashboard.model.Scope;
 import com.capitalone.dashboard.repository.FeatureCollectorRepository;
 import com.capitalone.dashboard.repository.ScopeRepository;
@@ -36,12 +37,10 @@ public class ProjectDataClient extends BaseClient {
 		}
 	}
 
-	private void updateMongoInfo(JSONArray tmpMongoDetailArray) {
-		for (Object obj : tmpMongoDetailArray) {
-			JSONObject dataMainObj = (JSONObject) obj;
+	private void updateMongoInfo(List<ProjectInfo> list) {
+		for (ProjectInfo projectInfo : list) {
 			Scope scope = new Scope();
-
-			String id = getJSONString(dataMainObj, "shortName");
+			String id = projectInfo.getShortName();
 			/*
 			 * Removing any existing entities where they exist in the local DB
 			 * store...
@@ -52,7 +51,7 @@ public class ProjectDataClient extends BaseClient {
 			// ID;
 			scope.setpId(id);
 			// name;
-			scope.setName(getJSONString(dataMainObj, "name"));
+			scope.setName(projectInfo.getName());
 			// beginDate - does not exist for youtrack
 			scope.setBeginDate("");
 			// endDate - does not exist for youtrack
@@ -64,7 +63,7 @@ public class ProjectDataClient extends BaseClient {
 			// isDeleted - does not exist for youtrack
 			scope.setIsDeleted("False");
 			// path - does not exist for youtrack
-			scope.setProjectPath(getJSONString(dataMainObj, "name"));
+			scope.setProjectPath(projectInfo.getName());
 			// Saving back to MongoDB
 			projectRepo.save(scope);
 		}

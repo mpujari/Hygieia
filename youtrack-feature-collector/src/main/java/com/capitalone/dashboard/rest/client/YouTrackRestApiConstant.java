@@ -15,6 +15,8 @@ public final class YouTrackRestApiConstant {
 	// {1} is agileboard name to be given
 	public static final String AGILE_SPRINTS = "/rest/agile/{1}/sprints";
 
+	public static final String ISSUES_BY_PROJECT = "/rest/issue/byproject/{project}";
+
 	private YouTrackRestApiConstant() {
 	}
 

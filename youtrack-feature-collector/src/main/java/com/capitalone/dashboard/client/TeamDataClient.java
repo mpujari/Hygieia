@@ -3,13 +3,12 @@ package com.capitalone.dashboard.client;
 import java.util.List;
 
 import org.bson.types.ObjectId;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import com.capitalone.dashboard.json.ProjectInfo;
 import com.capitalone.dashboard.model.ScopeOwnerCollectorItem;
 import com.capitalone.dashboard.repository.FeatureCollectorRepository;
 import com.capitalone.dashboard.repository.ScopeOwnerRepository;
@@ -17,7 +16,7 @@ import com.capitalone.dashboard.rest.client.YouTrackRestApi;
 import com.capitalone.dashboard.util.YouTrackConstants;
 
 public class TeamDataClient extends BaseClient {
-	
+
 	private final Logger logger = LoggerFactory.getLogger(getClass());
 	private final ScopeOwnerRepository teamRepo;
 	private final FeatureCollectorRepository featureCollectorRepository;
@@ -42,12 +41,10 @@ public class TeamDataClient extends BaseClient {
 		}
 	}
 
-	private void updateMongoInfo(JSONArray tmpMongoDetailArray) {
-		for (Object obj : tmpMongoDetailArray) {
-			JSONObject dataMainObj = (JSONObject) obj;
+	private void updateMongoInfo(List<ProjectInfo> list) {
+		for (ProjectInfo projectInfo : list) {
 			ScopeOwnerCollectorItem team = new ScopeOwnerCollectorItem();
-
-			String teamId = getJSONString(dataMainObj, "shortName");
+			String teamId = projectInfo.getShortName();
 			/*
 			 * Removing any existing entities where they exist in the local DB
 			 * store...
@@ -69,7 +66,7 @@ public class TeamDataClient extends BaseClient {
 			// teamId
 			team.setTeamId(teamId);
 			// name
-			team.setName(getJSONString(dataMainObj, "name"));
+			team.setName(projectInfo.getName());
 			// changeDate - does not exist for youtrack
 			team.setChangeDate("");
 			// assetState - does not exist for youtrack

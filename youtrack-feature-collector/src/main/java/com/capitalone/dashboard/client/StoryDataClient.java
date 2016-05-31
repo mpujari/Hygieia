@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.util.CollectionUtils;
 
 import com.capitalone.dashboard.json.FeatureSettings;
+import com.capitalone.dashboard.json.ProjectInfo;
 import com.capitalone.dashboard.json.Sprint;
 import com.capitalone.dashboard.json.YouTrackIssue;
 import com.capitalone.dashboard.misc.HygieiaException;
@@ -21,6 +22,7 @@ import com.capitalone.dashboard.model.FeatureStatus;
 import com.capitalone.dashboard.repository.FeatureCollectorRepository;
 import com.capitalone.dashboard.repository.FeatureRepository;
 import com.capitalone.dashboard.rest.client.YouTrackRestApi;
+import com.capitalone.dashboard.util.ClientUtil;
 import com.capitalone.dashboard.util.CoreFeatureSettings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -28,6 +30,8 @@ import com.google.common.collect.Maps;
 public class StoryDataClient extends BaseClient {
 
 	private static final String ESTIMATION_FIELD = "Estimation";
+
+	private static final int MAX = 500;
 
 	private final Logger logger = LoggerFactory.getLogger(getClass());
 	private final CoreFeatureSettings coreFeatureSettings;
@@ -69,23 +73,32 @@ public class StoryDataClient extends BaseClient {
 
 	public void updateStoryInformation() {
 		try {
-			// 2008-01-01 .. Today [2008-01-01+..+Today]
-			// TODO validate for maxChangeDate
-			String maxChangeDate = "updated:" + getMaxChangeDate() + " .. Today";
-			List<YouTrackIssue> youTrackIssues = youTrackRestApi.getYouTrackIssues(maxChangeDate,
-					String.valueOf(Integer.MAX_VALUE));
-			updateMongoInfo(youTrackIssues);
+			Long updatedAfter = ClientUtil.sprintDateCanonicalDateAsLong(getMaxChangeDate());
+			List<ProjectInfo> teams = youTrackRestApi.getTeams();
+			featureSettings.getLogin();
+			Map<String, Sprint> sprintNameMap = getSprintInfo();
+			for (ProjectInfo proInfo : teams) {
+				// Pagination is supported in a way by setting "after" field
+				for (int i = 0; i < Integer.MAX_VALUE; i += MAX) {
+					List<YouTrackIssue> issues = youTrackRestApi.getYouTrackIssuesByProject(proInfo.getShortName(), i,
+							MAX, updatedAfter);
+					updateMongoInfo(issues, sprintNameMap);
+					if (issues == null || issues.isEmpty() || issues.size() < MAX) {
+						// we are done
+						break;
+					}
+				}
+			}
 		} catch (Exception e) {
 			logger.error("Error in collecting Youtrack Data: " + e.getMessage(), e);
 		}
 	}
 
 	@SuppressWarnings({ "PMD.ExcessiveMethodLength", "PMD.NPathComplexity", "unchecked" })
-	private void updateMongoInfo(List<YouTrackIssue> youTrackIssues) {
-		if (youTrackIssues == null) {
+	private void updateMongoInfo(List<YouTrackIssue> youTrackIssues, Map<String, Sprint> sprintNameMap) {
+		if (youTrackIssues == null || youTrackIssues.isEmpty()) {
 			return; // nothing to do
 		}
-		Map<String, Sprint> sprintNameMap = getSprintInfo();
 		for (YouTrackIssue trackIssue : youTrackIssues) {
 			Feature feature = new Feature();
 
@@ -225,7 +238,7 @@ public class StoryDataClient extends BaseClient {
 			// System.out.println(assignees);
 			featureRepo.save(feature);
 		}
-		logger.info("Size:{}", youTrackIssues.size());
+		logger.info("Issue size:{}", youTrackIssues.size());
 	}
 
 	private Map<String, Sprint> getSprintInfo() {

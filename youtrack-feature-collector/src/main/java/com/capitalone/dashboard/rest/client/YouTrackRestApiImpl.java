@@ -5,6 +5,7 @@ package com.capitalone.dashboard.rest.client;
 
 import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.AGILE_INFO_ALL;
 import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.AGILE_SPRINTS;
+import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.ISSUES_BY_PROJECT;
 import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.JIRA_ALL;
 import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.PROJECT_ALL;
 import static com.capitalone.dashboard.rest.client.YouTrackRestApiConstant.USER_LOGIN;
@@ -21,9 +22,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.apache.commons.lang3.StringUtils;
-import org.json.simple.JSONArray;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
@@ -35,6 +33,7 @@ import org.springframework.web.client.RestOperations;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.capitalone.dashboard.json.AgileBoardInfo;
+import com.capitalone.dashboard.json.ProjectInfo;
 import com.capitalone.dashboard.json.Sprint;
 import com.capitalone.dashboard.json.YouTrackIssue;
 import com.capitalone.dashboard.misc.HygieiaException;
@@ -42,6 +41,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 public class YouTrackRestApiImpl implements YouTrackRestApi {
@@ -77,13 +77,13 @@ public class YouTrackRestApiImpl implements YouTrackRestApi {
 	}
 
 	@Override
-	public JSONArray getTeams() throws HygieiaException {
+	public List<ProjectInfo> getTeams() throws HygieiaException {
 		try {
 			ResponseEntity<String> response = callRestApi(PROJECT_ALL, GET, String.class);
-			String jsonStr = response.getBody();
-			JSONParser jsonParser = new JSONParser();
-			return (JSONArray) jsonParser.parse(jsonStr);
-		} catch (RestClientException | ParseException e) {
+			ObjectMapper mapper = new ObjectMapper();
+			return mapper.readValue(response.getBody().getBytes(), new TypeReference<List<ProjectInfo>>() {
+			});
+		} catch (Exception e) {
 			throw new HygieiaException(e);
 		}
 	}
@@ -103,6 +103,33 @@ public class YouTrackRestApiImpl implements YouTrackRestApi {
 			YouTrackIssues issues = (YouTrackIssues) mapper.readValue(responseEntity.getBody().getBytes(),
 					YouTrackIssues.class);
 			return issues.getIssues();
+		} catch (Exception e) {
+			throw new HygieiaException(e);
+		}
+	}
+
+	@Override
+	public List<YouTrackIssue> getYouTrackIssuesByProject(String projectName, int after, int max, long updatedAfter)
+			throws HygieiaException {
+		if (StringUtils.isBlank(projectName)) {
+			return Lists.newArrayList();
+		}
+		Map<String, Object[]> params = new HashMap<>();
+		String restApiUrl = ISSUES_BY_PROJECT.replace("{project}", projectName);
+		if (after > 0) {
+			params.put("after", new Object[] { after });
+		}
+		if (max > 0) {
+			params.put("max", new Object[] { max });
+		}
+		if (updatedAfter > 0) {
+			params.put("updatedAfter", new Object[] { updatedAfter });
+		}
+		ObjectMapper mapper = new ObjectMapper();
+		try {
+			ResponseEntity<String> responseEntity = callRestApi(restApiUrl, GET, params, String.class);
+			return mapper.readValue(responseEntity.getBody().getBytes(), new TypeReference<List<YouTrackIssue>>() {
+			});
 		} catch (Exception e) {
 			throw new HygieiaException(e);
 		}
@@ -189,4 +216,5 @@ public class YouTrackRestApiImpl implements YouTrackRestApi {
 			this.sprint = sprint;
 		}
 	}
+
 }

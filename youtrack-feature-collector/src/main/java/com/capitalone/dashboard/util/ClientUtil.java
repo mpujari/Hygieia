@@ -92,11 +92,53 @@ public class ClientUtil {
 				dateFormat2.setTimeZone(TimeZone.getTimeZone("UTC"));
 				parsed = dateFormat2.parse(sprintDateDifFormat);
 			} catch (ParseException e1) {
-				LOGGER.error("Could not parse date {1} with either formats", sprintDateDifFormat);
+				LOGGER.error("Could not parse date {} with either formats", sprintDateDifFormat);
 				return null;
 			}
 		}
 		return toCanonicalDate(parsed.getTime());
 	}
 
+	public static Long sprintDateCanonicalDateAsLong(String sprintDate) {
+		if (org.apache.commons.lang3.StringUtils.isBlank(sprintDate)) {
+			return new Date().getTime();
+		}
+		/*
+		 * // 06 Aug 15 Date parsed; try { DateFormat dateFormat1 = new
+		 * SimpleDateFormat("dd MMM yy");
+		 * dateFormat1.setTimeZone(TimeZone.getTimeZone("UTC")); parsed =
+		 * dateFormat1.parse(sprintDate); } catch (ParseException e) { // try
+		 * next format i.e. "Jan 07", appending current year to it String
+		 * sprintDateDifFormat = sprintDate + " " +
+		 * Calendar.getInstance().get(Calendar.YEAR); try { DateFormat
+		 * dateFormat2 = new SimpleDateFormat("MMM dd yyyy");
+		 * dateFormat2.setTimeZone(TimeZone.getTimeZone("UTC")); parsed =
+		 * dateFormat2.parse(sprintDateDifFormat); } catch (ParseException e1) {
+		 * LOGGER.error("Could not parse date {1} with either formats",
+		 * sprintDateDifFormat); return null; } }
+		 */
+		Date parseDate = parseDate(sprintDate, "dd MMM yy");
+		if (parseDate == null) {
+			parseDate = parseDate(sprintDate, "yyyy-MM-dd");
+			if (parseDate == null) {
+				// try next format i.e. "Jan 07", appending current year to it
+				String sprintDateDifFormat = sprintDate + " " + Calendar.getInstance().get(Calendar.YEAR);
+				parseDate = parseDate(sprintDate, sprintDateDifFormat);
+			}
+		}
+
+		return parseDate.getTime();
+	}
+
+	private static Date parseDate(String springDate, String dateFormatStr) {
+		// 2015-10-01
+		try {
+			DateFormat dateFormat = new SimpleDateFormat(dateFormatStr);
+			dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+			return dateFormat.parse(springDate);
+		} catch (ParseException e1) {
+			LOGGER.error("Could not parse date '{}' with either formats", dateFormatStr);
+			return null;
+		}
+	}
 }
